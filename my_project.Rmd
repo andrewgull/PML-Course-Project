@@ -98,6 +98,8 @@ Now we have only `r dim(train.transVar)[2] - 1` predictors in the dataset.
 
 ## Train the model
 
+I will fit two models with two different algorithms - random forest and naive bayes.
+
 ### Creating data sets
 
 ```{r cache=T, include=TRUE}
@@ -113,39 +115,75 @@ dim(training); dim(validation)
 
 I use random forest algorithm (as one of the most accurate algorithms) with 10 fold cross validation.
 
-```{r cache=T, include=TRUE}
+```{r cache=T, include=TRUE, warning=F, message=F}
 fitRF <- train(classe ~., method="rf", data=training, trControl=trainControl(method='cv', number=10), allowParallel=TRUE, importance=TRUE )
+fitNB <- train(classe ~., method="nb", data=training, trControl=trainControl(method='cv', number=10), allowParallel=TRUE, importance=TRUE)
 ```
 
 ### Variable importance
 
+Random forest only
+
 ```{r cache=T, include=TRUE}
-varImpPlot(fitRF$finalModel, sort = TRUE, type = 1, pch = 19, col = 1, cex = 0.6, main = "Importance of the Individual Predictors")
+varImpPlot(fitRF$finalModel, sort = TRUE, type = 1, pch = 19, col = 1, cex = 0.6, main = "Importance of the Individual Predictors (RF)")
 confusionMatrix(fitRF)
 ```
 
 ### Prediction on Validation set
 
+#### random forest
+
 ```{r cache=T, include=TRUE}
-predValid <- predict(fitRF, validation)
-confMat <- confusionMatrix(validation$classe, predValid)
+predValidRF <- predict(fitRF, validation)
+confMat <- confusionMatrix(validation$classe, predValidRF)
 confMat$table
 ```
 
+#### naive bayes
+
+```{r cache=T, include=TRUE, warning=FALSE}
+predValidNB <- predict(fitNB, validation)
+confMat <- confusionMatrix(validation$classe, predValidNB)
+confMat$table
+```
+
+
 ### Accuracy on validation data set
 
+#### random forest
+
 ```{r cache=T, include=TRUE}
-acc <- postResample(validation$classe, predValid)
+acc <- postResample(validation$classe, predValidRF)
 modAcc <- acc[[1]]
 modAcc
 ```
 
+#### naive bayes
+
+```{r cache=T, include=TRUE}
+accNB <- postResample(validation$classe, predValidNB)
+modAccNB <- accNB[[1]]
+modAccNB
+```
+
+Naive Bayes classification has much lower accuracy on the validation data set.
+
 ### Out of sample error
+
+#### random forest
 
 ```{r cache=T, include=TRUE}
 OoSErr <- 1 - modAcc
 OoSErr
 ```
+
+#### naive bayes
+
+```{r}
+1 - modAccNB
+```
+
+And much greater out of sample error. Therefore for prediction on test data sets I will use the model based on random forest approach.
 
 ## Applying the model to 20 test cases
 
@@ -154,7 +192,7 @@ But first I need to preprocess test data set in the same manner as the training 
 
 ```{r cache=T, include=T}
 charIdx <- which(lapply(raw.testing, class) %in% "character")
-preVar <- preProcess(raw.testing[,-c(charIdx), with=F], method=c('knnImpute', 'center', 'scale'))
+preVar <- preProcess(raw.testing[,-c(charIdx), with=F], method=c('center', 'scale'))
 test.transVar <- predict(preVar, raw.testing[,-c(charIdx), with=F])
 unVar <- c("raw_timestamp_part_1", "raw_timestamp_part_2", "num_window", "problem_id")
 test.transVar[, (unVar):=NULL]
